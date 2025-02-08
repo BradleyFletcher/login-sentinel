@@ -3,7 +3,8 @@
 /**
  * Email Alerts for Login Sentinel
  *
- * Sends scheduled or manual email alerts with metrics based on the selected frequency.
+ * Sends email alerts with aggregated metrics from login attempts and IP blocks,
+ * using a time range based on the email frequency selected in the settings.
  *
  * @package Login_Sentinel
  */
@@ -12,92 +13,88 @@ if (! defined('ABSPATH')) {
   exit;
 }
 
-// Include the email template file.
-require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/email-template.php';
-
 /**
- * Prepares and sends an HTML email alert containing metrics.
- *
- * Supported frequencies:
- *   - daily: last 24 hours
- *   - weekly: last 7 days
- *   - monthly: last 30 days
- *
- * @param string $frequency Optional. Frequency to use; defaults to the setting value.
- * @return bool True if mail sent, false otherwise.
+ * Sends an email alert with metrics covering the period determined by the email frequency setting.
  */
-function login_sentinel_send_email_alerts_manual($frequency = '')
+function login_sentinel_send_email_alerts()
 {
-  // Get plugin settings.
+  // Retrieve settings.
   $settings = get_option('login_sentinel_settings', array(
-    'notification_email'    => '',
-    'enable_notifications'  => 0,
-    'email_frequency'       => 'daily',
+    'log_retention'       => 30,
+    'notification_email'  => '',
+    'enable_notifications' => 0,
+    'block_duration'      => 60,
+    'email_frequency'     => 'daily',
   ));
 
-  // If notifications are disabled or email is empty, return false.
-  if (empty($settings['notification_email']) || ! $settings['enable_notifications']) {
-    error_log('[Login Sentinel] Email alerts: Notifications disabled or email address empty.');
-    return false;
+  // Only proceed if email notifications are enabled and a notification email is provided.
+  if (empty($settings['enable_notifications']) || empty($settings['notification_email'])) {
+    return;
   }
 
-  // Determine frequency: use provided or fallback to setting.
-  $freq = ! empty($frequency) ? $frequency : $settings['email_frequency'];
-  if ('weekly' === $freq) {
-    $start_time = date('Y-m-d H:i:s', strtotime('-7 days'));
-    $subject    = __('Weekly Login Sentinel Metrics', 'login-sentinel');
-  } elseif ('monthly' === $freq) {
-    $start_time = date('Y-m-d H:i:s', strtotime('-30 days'));
-    $subject    = __('Monthly Login Sentinel Metrics', 'login-sentinel');
-  } else {
-    // Default to daily.
-    $start_time = date('Y-m-d H:i:s', strtotime('-24 hours'));
-    $subject    = __('Daily Login Sentinel Metrics', 'login-sentinel');
+  // Determine the period to cover based on the email frequency.
+  $frequency = $settings['email_frequency'];
+  switch ($frequency) {
+    case 'weekly':
+      $period = '-7 days';
+      break;
+    case 'monthly':
+      $period = '-30 days';
+      break;
+    case 'daily':
+    default:
+      $period = '-24 hours';
+      break;
   }
+  $start_time = date('Y-m-d H:i:s', strtotime($period));
 
   global $wpdb;
   $attempts_table = $wpdb->prefix . 'login_sentinel_attempts';
   $blocks_table   = $wpdb->prefix . 'login_sentinel_ip_blocks';
 
-  $success = intval($wpdb->get_var($wpdb->prepare(
+  // Calculate aggregated metrics for login attempts over the selected period.
+  $agg_success = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND time >= %s",
     'Success',
     $start_time
   )));
-  $failed  = intval($wpdb->get_var($wpdb->prepare(
+  $agg_failed  = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND time >= %s",
     'Failed',
     $start_time
   )));
-  $blocked = intval($wpdb->get_var($wpdb->prepare(
+  $agg_blocked = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND time >= %s",
     'Blocked',
     $start_time
   )));
-  $total   = $success + $failed;
-  $active  = intval($wpdb->get_var($wpdb->prepare(
+  $agg_total   = $agg_success + $agg_failed;
+
+  // Calculate the number of IP blocks recorded over the selected period.
+  $agg_ipblocks = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $blocks_table WHERE blocked_time >= %s",
     $start_time
   )));
 
-  $metrics = array(
-    'success' => $success,
-    'failed'  => $failed,
-    'blocked' => $blocked,
-    'total_login_attempts'   => $total,
-    'active'  => $active,
-  );
+  // Build the email content.
+  $subject = __('Login Sentinel Metrics Alert', 'login-sentinel');
+  $message = "<h1>" . __('Login Sentinel Metrics', 'login-sentinel') . "</h1>";
+  $message .= "<p><strong>" . __('Period Covered', 'login-sentinel') . ":</strong> " . date('M j, Y, g:i a', strtotime($start_time)) . " to " . current_time('mysql') . "</p>";
+  $message .= "<p><strong>" . __('Successful Logins', 'login-sentinel') . ":</strong> " . number_format($agg_success) . "</p>";
+  $message .= "<p><strong>" . __('Failed Logins', 'login-sentinel') . ":</strong> " . number_format($agg_failed) . "</p>";
+  $message .= "<p><strong>" . __('Blocked Logins', 'login-sentinel') . ":</strong> " . number_format($agg_blocked) . "</p>";
+  $message .= "<p><strong>" . __('Total Login Attempts', 'login-sentinel') . ":</strong> " . number_format($agg_total) . "</p>";
+  $message .= "<p><strong>" . __('IP Blocks Recorded', 'login-sentinel') . ":</strong> " . number_format($agg_ipblocks) . "</p>";
 
-  // Use the separate email template.
-  $body = login_sentinel_get_email_template($subject, $start_time, $metrics);
+  // Log the metrics for debugging.
+  error_log("[Login Sentinel Email] Metrics for period starting {$start_time}: Success: {$agg_success}, Failed: {$agg_failed}, Blocked: {$agg_blocked}, Total Attempts: {$agg_total}, IP Blocks: {$agg_ipblocks}");
 
-  $headers = array(
-    'Content-Type: text/html; charset=UTF-8'
-  );
+  // Set headers for HTML email.
+  $headers = array('Content-Type: text/html; charset=UTF-8');
 
-  $result = wp_mail($settings['notification_email'], $subject, $body, $headers);
-  if (! $result) {
-    error_log('[Login Sentinel] wp_mail failed for subject: ' . $subject);
-  }
-  return $result;
+  // Send the email.
+  wp_mail($settings['notification_email'], $subject, $message, $headers);
 }
+
+// Hook the function to the daily email alert event.
+add_action('login_sentinel_daily_email_alert', 'login_sentinel_send_email_alerts');

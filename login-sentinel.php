@@ -27,14 +27,13 @@ require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-ip-block.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-settings.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/login-feedback.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/email-alerts.php';
-// Historical metrics and cleanup file removed.
+// Historical metrics and old cleanup files have been removed.
 
 if (is_admin()) {
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'admin/class-admin-menu.php';
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'admin/ajax/send-email-now.php';
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'admin/ajax/load-more-logs.php';
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'admin/ajax/get-historical-metrics.php';
-  // Removed historical metrics ajax.
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'admin/ajax/settings-save.php';
 } else {
   require_once LOGIN_SENTINEL_PLUGIN_DIR . 'public/class-shortcodes.php';
@@ -83,19 +82,19 @@ if (! empty($settings['disable_xmlrpc'])) {
   add_filter('xmlrpc_enabled', '__return_false');
 }
 
-// --- NEW: Update Expired IP Blocks Instead of Deleting Them ---
+// --- Update Expired IP Blocks Instead of Deleting Them ---
 // Define a fixed cron schedule: every five minutes.
 function login_sentinel_cron_schedules($schedules)
 {
   $schedules['every_five_minutes'] = array(
-    'interval' => 300, // 5 minutes = 300 seconds.
+    'interval' => 300, // 300 seconds = 5 minutes.
     'display'  => __('Every 5 Minutes', 'login-sentinel'),
   );
   return $schedules;
 }
 add_filter('cron_schedules', 'login_sentinel_cron_schedules');
 
-// Schedule the update event if not already scheduled.
+// Schedule the update event for expired IP blocks if not already scheduled.
 if (! wp_next_scheduled('login_sentinel_update_expired_ip_blocks_event')) {
   wp_schedule_event(time(), 'every_five_minutes', 'login_sentinel_update_expired_ip_blocks_event');
 }
@@ -103,7 +102,7 @@ add_action('login_sentinel_update_expired_ip_blocks_event', 'login_sentinel_upda
 
 /**
  * Update Expired IP Blocks:
- * Update any IP block record from "Blocked" to "Expired" if its blocked_time is older than block_duration minutes.
+ * Change any IP block record from "Blocked" to "Expired" if its blocked_time is older than block_duration minutes.
  */
 function login_sentinel_update_expired_ip_blocks()
 {
@@ -120,13 +119,49 @@ function login_sentinel_update_expired_ip_blocks()
   );
 }
 
-// Schedule a daily email alert cron event if not already scheduled.
-if (! wp_next_scheduled('login_sentinel_daily_email_alert')) {
-  wp_schedule_event(time(), 'daily', 'login_sentinel_daily_email_alert');
+// --- Email Alerts Scheduling Based on Email Frequency ---
+// Clear any existing schedule for the email alert.
+if (wp_next_scheduled('login_sentinel_daily_email_alert')) {
+  wp_clear_scheduled_hook('login_sentinel_daily_email_alert');
 }
-add_action('login_sentinel_daily_email_alert', 'login_sentinel_send_email_alerts_manual');
 
-// Removed historical aggregation scheduling and cleanup (old cleanup routines are no longer used).
+// Determine the desired interval from the email frequency setting.
+$frequency = ! empty($settings['email_frequency']) ? $settings['email_frequency'] : 'daily';
+$cron_intervals = array(
+  'daily'   => DAY_IN_SECONDS,
+  'weekly'  => WEEK_IN_SECONDS,
+  'monthly' => 30 * DAY_IN_SECONDS, // approximate month
+);
+$cron_interval = isset($cron_intervals[$frequency]) ? $cron_intervals[$frequency] : DAY_IN_SECONDS;
+
+// Schedule the email alert event using a custom schedule.
+if (! wp_next_scheduled('login_sentinel_daily_email_alert')) {
+  wp_schedule_event(time(), 'custom_login_sentinel_email', 'login_sentinel_daily_email_alert');
+}
+
+function login_sentinel_custom_email_cron($schedules)
+{
+  $settings = get_option('login_sentinel_settings', array('email_frequency' => 'daily'));
+  $frequency = ! empty($settings['email_frequency']) ? $settings['email_frequency'] : 'daily';
+  $cron_intervals = array(
+    'daily'   => DAY_IN_SECONDS,
+    'weekly'  => WEEK_IN_SECONDS,
+    'monthly' => 30 * DAY_IN_SECONDS,
+  );
+  if (isset($cron_intervals[$frequency])) {
+    $schedules['custom_login_sentinel_email'] = array(
+      'interval' => $cron_intervals[$frequency],
+      'display'  => sprintf(__('Every %s', 'login-sentinel'), $frequency),
+    );
+  }
+  return $schedules;
+}
+add_filter('cron_schedules', 'login_sentinel_custom_email_cron');
+
+// Hook the email alert function from email-alerts.php to the scheduled event.
+add_action('login_sentinel_daily_email_alert', 'login_sentinel_send_email_alerts');
+
+// --- Logging and IP Block Functions ---
 
 /* Example Logging Function */
 function login_sentinel_log_attempt($user, $event, $ip, $location)
@@ -167,7 +202,7 @@ function login_sentinel_block_ip($ip)
 function login_sentinel_record_login_attempt($user_login, $user)
 {
   $ip = $_SERVER['REMOTE_ADDR'];
-  $location = ''; // Optionally, integrate geolocation here.
+  $location = ''; // Optionally, integrate a geolocation API here.
   login_sentinel_log_attempt($user_login, 'Success', $ip, $location);
 }
 add_action('wp_login', 'login_sentinel_record_login_attempt', 10, 2);

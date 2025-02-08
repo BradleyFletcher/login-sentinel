@@ -135,7 +135,9 @@ function login_sentinel_get_email_template($subject, $start_time, $metrics, $foo
         <img src="<?php echo esc_url(LOGIN_SENTINEL_PLUGIN_URL . 'assets/images/lslogo.png'); ?>" alt="Login Sentinel Logo" style="display:block; margin:0 auto; max-width:150px;" />
       </div>
       <div class="header"><?php echo esc_html($subject); ?></div>
-      <div class="content">Metrics for the period since <?php echo esc_html($readable_date); ?></div>
+      <div class="content">
+        Metrics for the period since <?php echo esc_html($readable_date); ?>
+      </div>
       <table class="metrics-table">
         <tr>
           <th>Metric</th>

@@ -63,6 +63,42 @@ jQuery(document).ready(function ($) {
     });
   });
 
+  // Toggle for Enable Email Notifications using jQuery.
+  $("#toggle-enable-notifications").on("click", function () {
+    var $btn = $(this);
+    var $input = $("#enable_notifications");
+    var $dot = $("#toggle-enable-notifications-dot");
+    if ($btn.attr("aria-checked") === "true") {
+      $btn.attr("aria-checked", "false");
+      $btn.removeClass("bg-green-600").addClass("bg-gray-200");
+      $dot.removeClass("translate-x-5").addClass("translate-x-0");
+      $input.val("0");
+    } else {
+      $btn.attr("aria-checked", "true");
+      $btn.removeClass("bg-gray-200").addClass("bg-green-600");
+      $dot.removeClass("translate-x-0").addClass("translate-x-5");
+      $input.val("1");
+    }
+  });
+
+  // Toggle for Disable XML-RPC using jQuery.
+  $("#toggle-disable-xmlrpc").on("click", function () {
+    var $btn = $(this);
+    var $input = $("#disable_xmlrpc_input");
+    var $dot = $("#toggle-disable-xmlrpc-dot");
+    if ($btn.attr("aria-checked") === "true") {
+      $btn.attr("aria-checked", "false");
+      $btn.removeClass("bg-green-600").addClass("bg-gray-200");
+      $dot.removeClass("translate-x-5").addClass("translate-x-0");
+      $input.val("0");
+    } else {
+      $btn.attr("aria-checked", "true");
+      $btn.removeClass("bg-gray-200").addClass("bg-green-600");
+      $dot.removeClass("translate-x-0").addClass("translate-x-5");
+      $input.val("1");
+    }
+  });
+
   // View More for login attempts table.
   $("#view-more-attempts").on("click", function (e) {
     e.preventDefault();
