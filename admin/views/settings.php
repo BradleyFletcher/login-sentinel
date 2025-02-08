@@ -4,31 +4,6 @@ if (! defined('ABSPATH')) {
   exit;
 }
 
-// Process form submission.
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['login_sentinel_settings_nonce']) && wp_verify_nonce($_POST['login_sentinel_settings_nonce'], 'save_login_sentinel_settings')) {
-  $failed_attempts_threshold = intval($_POST['failed_attempts_threshold']);
-  $time_window               = intval($_POST['time_window']);
-  $block_duration            = intval($_POST['block_duration']);
-  $log_retention             = intval($_POST['log_retention']);
-  $notification_email        = sanitize_email($_POST['notification_email']);
-  $enable_notifications      = isset($_POST['enable_notifications']) ? 1 : 0;
-  $email_frequency           = sanitize_text_field($_POST['email_frequency']);
-  $disable_xmlrpc            = isset($_POST['disable_xmlrpc']) ? 1 : 0; // New option
-
-  $settings = array(
-    'failed_attempts_threshold' => $failed_attempts_threshold,
-    'time_window'               => $time_window,
-    'block_duration'            => $block_duration,
-    'log_retention'             => $log_retention,
-    'notification_email'        => $notification_email,
-    'enable_notifications'      => $enable_notifications,
-    'email_frequency'           => $email_frequency,
-    'disable_xmlrpc'            => $disable_xmlrpc,
-  );
-  update_option('login_sentinel_settings', $settings);
-  echo '<div class="p-4 mb-4 text-green-800 bg-green-100 rounded"><p>' . __('Settings saved.', 'login-sentinel') . '</p></div>';
-}
-
 $settings = get_option('login_sentinel_settings', array(
   'failed_attempts_threshold' => 5,
   'time_window'               => 15,
@@ -51,7 +26,8 @@ $settings = get_option('login_sentinel_settings', array(
   </div>
 
   <div class="max-w-3xl p-6 mx-auto bg-white rounded-lg shadow">
-    <form method="post" action="">
+    <!-- Settings Form with AJAX submission -->
+    <form id="login-sentinel-settings-form" method="post" action="">
       <?php wp_nonce_field('save_login_sentinel_settings', 'login_sentinel_settings_nonce'); ?>
 
       <!-- Failed Attempts Threshold -->
@@ -59,7 +35,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="failed_attempts_threshold" class="block text-sm font-medium text-gray-800">
           <?php _e('Failed Attempts Threshold', 'login-sentinel'); ?>
         </label>
-        <input type="number" name="failed_attempts_threshold" id="failed_attempts_threshold" value="<?php echo esc_attr($settings['failed_attempts_threshold']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1" />
+        <input type="number" name="failed_attempts_threshold" id="failed_attempts_threshold" value="<?php echo esc_attr($settings['failed_attempts_threshold']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1">
         <p class="mt-1 text-xs text-gray-500">
           <?php _e('Number of failed attempts before blocking an IP.', 'login-sentinel'); ?>
         </p>
@@ -70,7 +46,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="time_window" class="block text-sm font-medium text-gray-800">
           <?php _e('Time Window (minutes)', 'login-sentinel'); ?>
         </label>
-        <input type="number" name="time_window" id="time_window" value="<?php echo esc_attr($settings['time_window']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1" />
+        <input type="number" name="time_window" id="time_window" value="<?php echo esc_attr($settings['time_window']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1">
         <p class="mt-1 text-xs text-gray-500">
           <?php _e('Time window (in minutes) to consider failed attempts.', 'login-sentinel'); ?>
         </p>
@@ -81,7 +57,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="block_duration" class="block text-sm font-medium text-gray-800">
           <?php _e('Block Duration (minutes)', 'login-sentinel'); ?>
         </label>
-        <input type="number" name="block_duration" id="block_duration" value="<?php echo esc_attr($settings['block_duration']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1" />
+        <input type="number" name="block_duration" id="block_duration" value="<?php echo esc_attr($settings['block_duration']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1">
         <p class="mt-1 text-xs text-gray-500">
           <?php _e('Duration (in minutes) for which an IP is blocked.', 'login-sentinel'); ?>
         </p>
@@ -92,7 +68,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="log_retention" class="block text-sm font-medium text-gray-800">
           <?php _e('Log Retention (days)', 'login-sentinel'); ?>
         </label>
-        <input type="number" name="log_retention" id="log_retention" value="<?php echo esc_attr($settings['log_retention']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1" />
+        <input type="number" name="log_retention" id="log_retention" value="<?php echo esc_attr($settings['log_retention']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" min="1">
         <p class="mt-1 text-xs text-gray-500">
           <?php _e('Number of days to keep log entries.', 'login-sentinel'); ?>
         </p>
@@ -103,7 +79,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="notification_email" class="block text-sm font-medium text-gray-800">
           <?php _e('Notification Email', 'login-sentinel'); ?>
         </label>
-        <input type="email" name="notification_email" id="notification_email" value="<?php echo esc_attr($settings['notification_email']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500" />
+        <input type="email" name="notification_email" id="notification_email" value="<?php echo esc_attr($settings['notification_email']); ?>" class="block w-full mt-1 border-gray-300 rounded-md shadow-sm focus:border-gray-500 focus:ring-gray-500">
         <p class="mt-1 text-xs text-gray-500">
           <?php _e('Email address to receive periodic metrics.', 'login-sentinel'); ?>
         </p>
@@ -138,7 +114,7 @@ $settings = get_option('login_sentinel_settings', array(
         <label for="disable_xmlrpc" class="block ml-2 text-sm text-gray-800">
           <?php _e('Disable XML-RPC', 'login-sentinel'); ?>
         </label>
-        <p class="mt-1 ml-8 text-xs text-gray-500">
+        <p class="mt-1 text-xs text-gray-500">
           <?php _e('Disabling XML-RPC can reduce exposure to brute force attacks if your site does not require it.', 'login-sentinel'); ?>
         </p>
       </div>
@@ -167,6 +143,30 @@ $settings = get_option('login_sentinel_settings', array(
     </form>
   </div>
   <script type="text/javascript">
+    jQuery(document).ready(function($) {
+      // Ajax submission for the settings form.
+      $('#login-sentinel-settings-form').on('submit', function(e) {
+        e.preventDefault();
+        var formData = $(this).serialize();
+        $.ajax({
+          url: ajaxurl,
+          method: 'POST',
+          data: formData + '&action=login_sentinel_save_settings',
+          success: function(response) {
+            $('.ajax-message').remove();
+            if (response.success) {
+              $('#login-sentinel-settings-form').prepend('<div class="ajax-message p-4 mb-4 text-green-800 bg-green-100 rounded"><p>' + response.data.message + '</p></div>');
+            } else {
+              $('#login-sentinel-settings-form').prepend('<div class="ajax-message p-4 mb-4 text-red-800 bg-red-100 rounded"><p>' + response.data.message + '</p></div>');
+            }
+          },
+          error: function() {
+            $('.ajax-message').remove();
+            $('#login-sentinel-settings-form').prepend('<div class="ajax-message p-4 mb-4 text-red-800 bg-red-100 rounded"><p><?php _e("An error occurred while saving settings.", "login-sentinel"); ?></p></div>');
+          }
+        });
+      });
+    });
     var loginSentinelSendEmailNowNonce = "<?php echo esc_js(wp_create_nonce('login_sentinel_send_email_now_nonce')); ?>";
   </script>
 </div>

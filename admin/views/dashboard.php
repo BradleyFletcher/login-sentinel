@@ -29,22 +29,30 @@ $chart_active_data = array();
 for ($i = 29; $i >= 0; $i--) {
   $date = date('Y-m-d', strtotime("-$i days"));
   $chart_labels[] = date('M j', strtotime($date));
+
   $day_success = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND DATE(time) = %s",
     'Success',
     $date
   )));
+
   $day_failed = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND DATE(time) = %s",
     'Failed',
     $date
   )));
+
   $day_blocked = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $attempts_table WHERE event = %s AND DATE(time) = %s",
     'Blocked',
     $date
   )));
+
   $day_total = $day_success + $day_failed;
+
+  // For IP blocks per day, we count all blocks with blocked_time on that day.
+  // Note: In the dashboard chart we may show overall IP blocks (not just active) 
+  // because a block may have been active on that day.
   $day_active = intval($wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM $blocks_table WHERE DATE(blocked_time) = %s",
     $date
@@ -77,6 +85,7 @@ $agg_blocked = intval($wpdb->get_var($wpdb->prepare(
 $agg_total   = $agg_success + $agg_failed;
 
 // Active IP Blocks: count only blocks that are still active.
+// We use the block_duration setting to determine expiration.
 $settings = get_option('login_sentinel_settings', array('block_duration' => 60));
 $block_duration = intval($settings['block_duration']);
 $agg_active = intval($wpdb->get_var($wpdb->prepare(
@@ -258,12 +267,10 @@ if (empty($recommendations)) {
       ?>
     </div>
   </div>
-
-  <!-- Inline Chart Data and Nonce for JavaScript -->
   <script type="text/javascript">
     var loginSentinelChartData = <?php echo wp_json_encode($chart_data); ?>;
     var loginSentinelLoadMoreNonce = "<?php echo esc_js(wp_create_nonce('login_sentinel_load_more_logs_nonce')); ?>";
-    var loginSentinelGetHistoricalMetricsNonce = "<?php echo esc_js(wp_create_nonce('login_sentinel_get_historical_metrics_nonce')); ?>";
+    var loginSentinelGetHistoricalMetricsNonce = "<?php echo esc_js(wp_create_nonce('login_sentinel_get_historical_metrics')); ?>";
     var defaultResetStart = "<?php echo esc_js($defaultResetStart); ?>";
     var defaultResetEnd = "<?php echo esc_js($defaultResetEnd); ?>";
   </script>

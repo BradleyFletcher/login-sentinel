@@ -1,13 +1,16 @@
 /* assets/js/admin.js */
 jQuery(document).ready(function ($) {
-  // Chart initialization
+  // Global chart instance variable.
+  var loginChart;
+
+  // Chart initialization (default: last 30 days).
   var canvas = document.getElementById("login-sentinel-chart");
   if (canvas) {
     var ctx = canvas.getContext("2d");
     if (typeof loginSentinelChartData === "undefined") {
       console.error("Chart data not defined.");
     } else {
-      var loginChart = new Chart(ctx, {
+      loginChart = new Chart(ctx, {
         type: "line",
         data: loginSentinelChartData,
         options: {
@@ -26,7 +29,41 @@ jQuery(document).ready(function ($) {
     }
   }
 
-  // View More for login attempts table
+  // AJAX submission for settings form.
+  $("#login-sentinel-settings-form").on("submit", function (e) {
+    e.preventDefault();
+    var formData = $(this).serialize();
+    $.ajax({
+      url: ajaxurl,
+      method: "POST",
+      data: formData + "&action=login_sentinel_save_settings",
+      success: function (response) {
+        $(".ajax-message").remove();
+        if (response.success) {
+          $("#login-sentinel-settings-form").prepend(
+            '<div class="ajax-message p-4 mb-4 text-green-800 bg-green-100 rounded"><p>' +
+              response.data.message +
+              "</p></div>"
+          );
+        } else {
+          console.error("Settings save response error:", response);
+          $("#login-sentinel-settings-form").prepend(
+            '<div class="ajax-message p-4 mb-4 text-red-800 bg-red-100 rounded"><p>' +
+              response.data.message +
+              "</p></div>"
+          );
+        }
+      },
+      error: function () {
+        $(".ajax-message").remove();
+        $("#login-sentinel-settings-form").prepend(
+          '<div class="ajax-message p-4 mb-4 text-red-800 bg-red-100 rounded"><p>Error saving settings.</p></div>'
+        );
+      },
+    });
+  });
+
+  // View More for login attempts table.
   $("#view-more-attempts").on("click", function (e) {
     e.preventDefault();
     var offset = parseInt($("#attempts-offset").val());
@@ -56,7 +93,7 @@ jQuery(document).ready(function ($) {
     });
   });
 
-  // View More for IP blocks table
+  // View More for IP blocks table.
   $("#view-more-blocks").on("click", function (e) {
     e.preventDefault();
     var offset = parseInt($("#blocks-offset").val());
@@ -86,7 +123,7 @@ jQuery(document).ready(function ($) {
     });
   });
 
-  // Handle "Send Metrics Email" form submission on settings page.
+  // Handle "Send Metrics Email" form submission.
   $("#send-email-form").on("submit", function (e) {
     e.preventDefault();
     var frequency = $("#email_frequency_manual").val();
@@ -107,6 +144,7 @@ jQuery(document).ready(function ($) {
             '<div class="text-green-600">Email sent successfully.</div>'
           );
         } else {
+          console.error("Send email response error:", response);
           $("#send-email-message").html(
             '<div class="text-red-600">Failed to send email.</div>'
           );
@@ -132,6 +170,14 @@ jQuery(document).ready(function ($) {
       );
       return;
     }
+    console.log(
+      "Applying date filter. Start:",
+      startDate,
+      "End:",
+      endDate,
+      "Nonce:",
+      loginSentinelGetHistoricalMetricsNonce
+    );
     $("#date-filter-message").html(
       '<div class="animate-pulse text-gray-500">Loading historical data...</div>'
     );
@@ -145,20 +191,15 @@ jQuery(document).ready(function ($) {
         nonce: loginSentinelGetHistoricalMetricsNonce,
       },
       success: function (response) {
+        console.log("Historical metrics response:", response);
         $("#date-filter-message").empty();
         if (response.success && response.data) {
-          var agg = response.data.aggregated;
-          if (
-            Number(agg.total_success) === 0 &&
-            Number(agg.total_failed) === 0 &&
-            Number(agg.total_blocked) === 0 &&
-            Number(agg.total_login_attempts) === 0 &&
-            Number(agg.total_ip_blocks) === 0
-          ) {
+          if (response.data.no_data) {
             $("#date-filter-message").html(
-              '<div class="text-red-600">No data for these dates.</div>'
+              '<div class="text-red-600">No data available for the selected date range.</div>'
             );
           } else {
+            var agg = response.data.aggregated;
             $("#card-success").text(Number(agg.total_success).toLocaleString());
             $("#card-failed").text(Number(agg.total_failed).toLocaleString());
             $("#card-blocked").text(Number(agg.total_blocked).toLocaleString());
@@ -168,7 +209,6 @@ jQuery(document).ready(function ($) {
             $("#card-active").text(
               Number(agg.total_ip_blocks).toLocaleString()
             );
-
             $("#date-filter-message").html(
               '<div class="text-green-600">Showing metrics from ' +
                 startDate +
@@ -214,6 +254,7 @@ jQuery(document).ready(function ($) {
             });
           }
         } else {
+          console.error("Historical metrics error:", response);
           $("#date-filter-message").html(
             '<div class="text-red-600">Failed to load historical data.</div>'
           );
@@ -231,7 +272,6 @@ jQuery(document).ready(function ($) {
   // Handle "Reset to Live Data" button.
   $("#reset-date-filter").on("click", function (e) {
     e.preventDefault();
-    // Reload the page to show live data.
     location.reload();
   });
 });

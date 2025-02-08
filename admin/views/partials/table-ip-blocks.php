@@ -6,9 +6,10 @@ if (! defined('ABSPATH')) {
 
 global $wpdb;
 $table_name = $wpdb->prefix . 'login_sentinel_ip_blocks';
+// Retrieve all IP block records, ordered by blocked_time descending.
 $blocks = $wpdb->get_results("SELECT * FROM $table_name ORDER BY blocked_time DESC LIMIT 10");
 ?>
-<h2 class="my-4 text-xl font-bold"><?php esc_html_e('Active IP Blocks', 'login-sentinel'); ?></h2>
+<h2 class="my-4 text-xl font-bold"><?php esc_html_e('IP Blocks', 'login-sentinel'); ?></h2>
 <table class="min-w-full bg-white border">
   <thead class="text-white bg-gray-700">
     <tr>
@@ -38,6 +39,9 @@ $blocks = $wpdb->get_results("SELECT * FROM $table_name ORDER BY blocked_time DE
       switch ($block->event) {
         case 'Blocked':
           $badgeClass = 'bg-yellow-100 text-yellow-800';
+          break;
+        case 'Expired':
+          $badgeClass = 'bg-gray-300 text-gray-800';
           break;
         default:
           $badgeClass = 'bg-gray-100 text-gray-800';
