@@ -24,7 +24,6 @@ require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/functions.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-logger.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-firewall.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-ip-block.php';
-require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/class-settings.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/login-feedback.php';
 require_once LOGIN_SENTINEL_PLUGIN_DIR . 'includes/email-alerts.php';
 // Historical metrics and old cleanup files have been removed.
